@@ -63,15 +63,18 @@ int path_mount(const char *dev_name, struct path *path,
 	return -ENOSYS;
 }
 """
-# Prefer after path_umount if present, else append before last line.
-idx = t.find("int path_umount(struct path *path, int flags)")
+# Insert after do_change_type so the static helper is already defined.
+idx = t.find("static int do_change_type(struct path *path, int flag)")
+if idx < 0:
+    idx = t.find("static int do_change_type(struct path *path, int flags)")
 if idx >= 0:
     end = t.find("\n}\n", idx)
     if end < 0:
-        raise SystemExit("path_umount end not found")
+        raise SystemExit("do_change_type end not found")
     end += len("\n}\n")
     t = t[:end] + fn + t[end:]
 else:
+    # Fallback: append at end of file.
     t = t.rstrip() + "\n" + fn + "\n"
 p.write_text(t)
 print("injected path_mount into", p)
