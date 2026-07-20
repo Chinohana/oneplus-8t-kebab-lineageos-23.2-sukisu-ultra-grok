@@ -116,10 +116,24 @@ if ! grep -q '#include <linux/init_task.h>' \
 fi
 
 echo "Backporting TWA_RESUME for SukiSU supercall on Linux 4.19"
-if grep -q 'task_work_add(current, &tw->cb, TWA_RESUME)' \
-  "${KERNEL_DIR}/KernelSU/kernel/supercall/supercall.c"; then
-  git -C "${KERNEL_DIR}/KernelSU" apply \
-    "${ROOT_DIR}/patches/sukisu-supercall-task-work-4.19.patch"
+SUPERCALL_C="${KERNEL_DIR}/KernelSU/kernel/supercall/supercall.c"
+if grep -q 'task_work_add(current, &tw->cb, TWA_RESUME)' "${SUPERCALL_C}"; then
+  if ! git -C "${KERNEL_DIR}/KernelSU" apply \
+    "${ROOT_DIR}/patches/sukisu-supercall-task-work-4.19.patch"; then
+    echo "git apply failed; rewriting TWA_RESUME via sed"
+    if ! grep -q 'KSU_TWA_RESUME' "${SUPERCALL_C}"; then
+      sed -i '/#include <linux\/version.h>/a\
+\
+/* Linux 4.19 task_work_add takes a bool notify flag, not TWA_*. */\
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)\
+#define KSU_TWA_RESUME true\
+#else\
+#define KSU_TWA_RESUME TWA_RESUME\
+#endif' "${SUPERCALL_C}"
+    fi
+    sed -i 's/task_work_add(current, \&tw->cb, TWA_RESUME)/task_work_add(current, \&tw->cb, KSU_TWA_RESUME)/g' \
+      "${SUPERCALL_C}"
+  fi
 fi
 
 make_args=(

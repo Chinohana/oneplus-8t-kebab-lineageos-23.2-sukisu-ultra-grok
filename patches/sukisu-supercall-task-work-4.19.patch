@@ -16,11 +16,11 @@ diff --git a/kernel/supercall/supercall.c b/kernel/supercall/supercall.c
  #include "uapi/supercall.h"
  #include "kpm/kpm.h"
 @@ -98,7 +105,7 @@
-         tw->outp = outfd;
+         tw->outp = (int __user *)arg4;
          tw->cb.func = ksu_install_fd_tw_func;
 
 -        if (task_work_add(current, &tw->cb, TWA_RESUME)) {
 +        if (task_work_add(current, &tw->cb, KSU_TWA_RESUME)) {
              kfree(tw);
              pr_warn("install fd add task_work failed\n");
-             return -EBUSY;
+         }
