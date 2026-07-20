@@ -115,6 +115,13 @@ if ! grep -q '#include <linux/init_task.h>' \
     "${ROOT_DIR}/patches/sukisu-tasklist-4.19.patch"
 fi
 
+echo "Backporting TWA_RESUME for SukiSU supercall on Linux 4.19"
+if grep -q 'task_work_add(current, &tw->cb, TWA_RESUME)' \
+  "${KERNEL_DIR}/KernelSU/kernel/supercall/supercall.c"; then
+  git -C "${KERNEL_DIR}/KernelSU" apply \
+    "${ROOT_DIR}/patches/sukisu-supercall-task-work-4.19.patch"
+fi
+
 make_args=(
   -C "${KERNEL_DIR}"
   O="${OUT_DIR}"
