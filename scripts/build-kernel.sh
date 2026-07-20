@@ -108,6 +108,13 @@ if grep -q '#include <linux/minmax.h>' \
     "${ROOT_DIR}/patches/sukisu-minmax-4.19.patch"
 fi
 
+echo "Exposing tasklist/init_task symbols for SukiSU supercall on Linux 4.19"
+if ! grep -q '#include <linux/init_task.h>' \
+  "${KERNEL_DIR}/KernelSU/kernel/supercall/dispatch.c"; then
+  git -C "${KERNEL_DIR}/KernelSU" apply \
+    "${ROOT_DIR}/patches/sukisu-tasklist-4.19.patch"
+fi
+
 make_args=(
   -C "${KERNEL_DIR}"
   O="${OUT_DIR}"
