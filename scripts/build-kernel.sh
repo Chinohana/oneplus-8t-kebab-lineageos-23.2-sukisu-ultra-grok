@@ -37,23 +37,15 @@ fi
 echo "Backporting path_mount for Linux 4.19 (SukiSU individual mnt ns)"
 if ! grep -q '^int path_mount(const char \*dev_name, struct path \*path' \
   "${KERNEL_DIR}/fs/namespace.c"; then
-  if ! git -C "${KERNEL_DIR}" apply "${ROOT_DIR}/patches/path-mount-4.19.patch"; then
-    echo "git apply failed; injecting path_mount after path_umount"
-    python3 - <<'PY'
+  python3 - <<PY
 from pathlib import Path
-p = Path("${KERNEL_DIR}/fs/namespace.c")
+p = Path(r"""${KERNEL_DIR}/fs/namespace.c""")
 t = p.read_text()
-if "int path_mount(const char *dev_name, struct path *path" in t:
+marker = "int path_mount(const char *dev_name, struct path *path"
+if marker in t:
+    print("path_mount already present")
     raise SystemExit(0)
-needle = "int path_umount(struct path *path, int flags)"
-idx = t.find(needle)
-if idx < 0:
-    raise SystemExit("path_umount not found for path_mount inject")
-# find end of path_umount function: after its closing brace following mntput
-end = t.find("\n}\n", idx)
-if end < 0:
-    raise SystemExit("path_umount end not found")
-end += len("\n}\n")
+# Insert near end of file so do_change_type is already defined above.
 fn = """
 /*
  * Minimal path_mount for Linux 4.19 (SukiSU-Ultra needs MS_PRIVATE|MS_REC).
@@ -66,16 +58,24 @@ int path_mount(const char *dev_name, struct path *path,
 				      MS_UNBINDABLE | MS_REC);
 
 	if (prop && !(flags & ~prop) && !dev_name && !type_page && !data_page)
-		return do_change_type(path, flags);
+		return do_change_type(path, (int)flags);
 
 	return -ENOSYS;
 }
-
 """
-p.write_text(t[:end] + fn + t[end:])
-print("injected path_mount")
+# Prefer after path_umount if present, else append before last line.
+idx = t.find("int path_umount(struct path *path, int flags)")
+if idx >= 0:
+    end = t.find("\n}\n", idx)
+    if end < 0:
+        raise SystemExit("path_umount end not found")
+    end += len("\n}\n")
+    t = t[:end] + fn + t[end:]
+else:
+    t = t.rstrip() + "\n" + fn + "\n"
+p.write_text(t)
+print("injected path_mount into", p)
 PY
-  fi
 fi
 
 echo "Applying the Linux 4.19 access_ok compatibility shim for SukiSU-Ultra KPM"
@@ -135,23 +135,19 @@ if ! grep -q '^#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)$' \
 fi
 
 echo "Skipping seccomp_filter_release on Linux 4.19"
-if grep -q '^void seccomp_filter_release(struct task_struct \*tsk);$' \
+if grep -q 'seccomp_filter_release(fake)' \
   "${KERNEL_DIR}/KernelSU/kernel/policy/app_profile.c" && \
-   ! grep -q 'seccomp_filter_release is not' \
+  ! grep -q 'KERNEL_VERSION(5, 9, 0)' \
   "${KERNEL_DIR}/KernelSU/kernel/policy/app_profile.c"; then
-  # Prefer precise patch; fall back to sed.
-  if ! git -C "${KERNEL_DIR}/KernelSU" apply \
-    "${ROOT_DIR}/patches/sukisu-seccomp-release-4.19.patch"; then
-    echo "git apply failed; sed-fallback for seccomp_filter_release"
-    python3 - <<'PY'
+  python3 - <<PY
 from pathlib import Path
-p = Path("${KERNEL_DIR}/KernelSU/kernel/policy/app_profile.c")
+p = Path(r"""${KERNEL_DIR}/KernelSU/kernel/policy/app_profile.c""")
 t = p.read_text()
 old = "void seccomp_filter_release(struct task_struct *tsk);"
 new = """#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
 void seccomp_filter_release(struct task_struct *tsk);
 #endif"""
-if old in t and "KERNEL_VERSION(5, 9, 0)" not in t.split("seccomp_filter_release")[0][-200:]:
+if old in t:
     t = t.replace(old, new, 1)
 call = "    seccomp_filter_release(fake);"
 call_new = """#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
@@ -160,8 +156,8 @@ call_new = """#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
 if call in t:
     t = t.replace(call, call_new, 1)
 p.write_text(t)
+print("gated seccomp_filter_release")
 PY
-  fi
 fi
 
 echo "Backporting the Linux 4.19 SELinux policy layout for SukiSU-Ultra"
