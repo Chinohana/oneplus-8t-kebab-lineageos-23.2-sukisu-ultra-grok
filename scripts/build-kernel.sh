@@ -101,6 +101,13 @@ echo "Using the Linux 4.19 SELinux policydb implementation"
 cp "${ROOT_DIR}/compat/sukisu/sepolicy-4.19.c" \
   "${KERNEL_DIR}/KernelSU/kernel/selinux/sepolicy.c"
 
+echo "Backporting minmax/nofault helpers for SukiSU sulog on Linux 4.19"
+if grep -q '#include <linux/minmax.h>' \
+  "${KERNEL_DIR}/KernelSU/kernel/sulog/event.c"; then
+  git -C "${KERNEL_DIR}/KernelSU" apply \
+    "${ROOT_DIR}/patches/sukisu-minmax-4.19.patch"
+fi
+
 make_args=(
   -C "${KERNEL_DIR}"
   O="${OUT_DIR}"
