@@ -101,6 +101,10 @@ echo "Using the Linux 4.19 SELinux policydb implementation"
 cp "${ROOT_DIR}/compat/sukisu/sepolicy-4.19.c" \
   "${KERNEL_DIR}/KernelSU/kernel/selinux/sepolicy.c"
 
+echo "Using the Linux 4.19 selinux_hide stub (modern SELinux internals missing)"
+cp "${ROOT_DIR}/compat/sukisu/selinux_hide-4.19.c" \
+  "${KERNEL_DIR}/KernelSU/kernel/feature/selinux_hide.c"
+
 echo "Backporting minmax/nofault helpers for SukiSU sulog on Linux 4.19"
 if grep -q '#include <linux/minmax.h>' \
   "${KERNEL_DIR}/KernelSU/kernel/sulog/event.c"; then
